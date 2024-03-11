@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use clap::{command, Arg, ArgAction, ArgMatches};
 use rand::prelude::*;
 
@@ -28,7 +30,7 @@ impl Roll {
         }
     }
 
-    fn display(&self, mut rolls: Vec<usize>, verbose: bool) {
+    fn display(&self, rolls: Vec<usize>, verbose: bool) {
         if verbose {
             println!(
                 "Rolled: {}D{}{:+}, Keeping: {}, Advantage: {}",
@@ -45,19 +47,10 @@ impl Roll {
             );
         }
 
-        if self.keep < rolls.len() as isize {
-            let mut keep = self.keep;
-            while keep < rolls.len() as isize {
-                let min = rolls.iter().min().unwrap();
-                let min_index = rolls.iter().position(|&x| x == *min).unwrap();
-                rolls.remove(min_index);
-                keep += 1;
-            }
-        }
-
         println!(
             "You rolled a {}",
-            ((rolls.into_iter().sum::<usize>() as isize) + self.modifier).max(0)
+            ((rolls.iter().rev().take(self.keep as usize).sum::<usize>() as isize) + self.modifier)
+                .max(0)
         );
     }
 
@@ -76,6 +69,7 @@ impl Roll {
             rolls.push(droll);
             number -= 1;
         }
+        rolls.sort();
     }
 }
 
@@ -142,64 +136,44 @@ fn main() {
         )
         .get_matches();
 
-    let mut times = match match_result
-        .get_one::<String>("times")
-        .unwrap()
-        .parse::<usize>()
-    {
-        Ok(x) => x,
-        Err(_) => {
-            println!("Times must be a positive integer");
-            std::process::exit(1);
-        }
-    };
+    let mut times = handle_error(
+        match_result
+            .get_one::<String>("times")
+            .unwrap()
+            .parse::<usize>(),
+        "Times must be a positive integer",
+    );
 
     let roll = Roll::new(
-        match match_result
-            .get_one::<String>("sides")
-            .unwrap()
-            .parse::<usize>()
-        {
-            Ok(x) => x,
-            Err(_) => {
-                println!("Side must be a positive integer");
-                std::process::exit(1);
-            }
-        },
-        match match_result
-            .get_one::<String>("number")
-            .unwrap()
-            .parse::<usize>()
-        {
-            Ok(x) => x,
-            Err(_) => {
-                println!("Number must be a positive integer");
-                std::process::exit(1);
-            }
-        },
+        handle_error(
+            match_result
+                .get_one::<String>("sides")
+                .unwrap()
+                .parse::<usize>(),
+            "Side must be a positive integer",
+        ),
+        handle_error(
+            match_result
+                .get_one::<String>("number")
+                .unwrap()
+                .parse::<usize>(),
+            "Number must be a positive integer",
+        ),
         match_result.get_flag("advantage"),
-        match match_result
-            .get_one::<String>("modifier")
-            .unwrap()
-            .parse::<isize>()
-        {
-            Ok(x) => x,
-            Err(_) => {
-                println!("Modifier must be an integer");
-                std::process::exit(1);
-            }
-        },
-        match match_result
-            .get_one::<String>("keep")
-            .unwrap()
-            .parse::<isize>()
-        {
-            Ok(x) => x,
-            Err(_) => {
-                println!("Keep must be a positive intiger");
-                std::process::exit(1);
-            }
-        },
+        handle_error(
+            match_result
+                .get_one::<String>("modifier")
+                .unwrap()
+                .parse::<isize>(),
+            "Modifier must be an integer",
+        ),
+        handle_error(
+            match_result
+                .get_one::<String>("keep")
+                .unwrap()
+                .parse::<isize>(),
+            "Keep must be a positive intiger",
+        ),
     );
 
     while times > 0 {
@@ -209,5 +183,18 @@ fn main() {
         roll.display(rolls, match_result.get_flag("verbose"));
 
         times -= 1;
+    }
+}
+
+fn handle_error<T>(result: Result<T, T::Err>, msg: &str) -> T
+where
+    T: FromStr,
+{
+    match result {
+        Ok(x) => x,
+        Err(_) => {
+            println!("{}", msg);
+            std::process::exit(1);
+        }
     }
 }
