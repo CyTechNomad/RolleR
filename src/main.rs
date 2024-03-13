@@ -1,57 +1,74 @@
-use std::str::FromStr;
+use core::fmt;
+use std::{str::FromStr, usize};
 
 use clap::{command, Arg, ArgAction, ArgMatches};
 use rand::prelude::*;
 
 struct Roll {
+    properties: Properties,
+    values: Vec<usize>,
+}
+impl fmt::Debug for Roll {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        writeln!(
+            f,
+            "Rolled: {}D{}{:+}, Keeping: {}, Advantage: {}\nIndividual rolls: {}\nTotal: {}",
+            self.properties.number,
+            self.properties.sides,
+            self.properties.modifier,
+            self.properties.keep.unwrap_or(self.properties.number),
+            self.properties.advantage,
+            self.values
+                .iter()
+                .map(|x| x.to_string())
+                .collect::<Vec<String>>()
+                .join(", "),
+            self.values
+                .iter()
+                .rev()
+                .take(self.properties.keep.unwrap_or(self.properties.number))
+                .sum::<usize>() as isize
+                + self.properties.modifier
+        )
+    }
+}
+impl fmt::Display for Roll {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        writeln!(
+            f,
+            "Total: {}",
+            self.values
+                .iter()
+                .rev()
+                .take(self.properties.keep.unwrap_or(self.properties.number))
+                .sum::<usize>() as isize
+                + self.properties.modifier
+        )
+    }
+}
+#[derive(Copy, Clone)]
+struct Properties {
     sides: usize,
     number: usize,
     advantage: bool,
     modifier: isize,
-    keep: isize,
+    keep: Option<usize>,
 }
-impl Roll {
-    fn new(sides: usize, number: usize, advantage: bool, modifier: isize, mut keep: isize) -> Roll {
-        if keep < 1 {
-            keep = number as isize;
-        }
-
-        if keep > number as isize {
-            println!("You can't keep more dice than you rolled");
-            std::process::exit(1);
-        }
-
-        Roll {
+impl Properties {
+    fn new(
+        sides: usize,
+        number: usize,
+        advantage: bool,
+        modifier: isize,
+        keep: Option<usize>,
+    ) -> Properties {
+        Properties {
             sides,
             number,
             advantage,
             modifier,
             keep,
         }
-    }
-
-    fn display(&self, rolls: Vec<usize>, verbose: bool) {
-        if verbose {
-            println!(
-                "Rolled: {}D{}{:+}, Keeping: {}, Advantage: {}",
-                self.number, self.sides, self.modifier, self.keep, self.advantage
-            );
-
-            println!(
-                "Individual rolls: {}",
-                rolls
-                    .iter()
-                    .map(|x| x.to_string())
-                    .collect::<Vec<String>>()
-                    .join(", ")
-            );
-        }
-
-        println!(
-            "You rolled a {}",
-            ((rolls.iter().rev().take(self.keep as usize).sum::<usize>() as isize) + self.modifier)
-                .max(0)
-        );
     }
 
     fn roll(&self, rolls: &mut Vec<usize>) {
@@ -73,8 +90,8 @@ impl Roll {
     }
 }
 
-fn main() {
-    let match_result: ArgMatches = command!()
+fn def_commands() -> ArgMatches {
+    command!()
         .about("Rolls dice of a given number of sides and adds modifiers")
         .arg(
             Arg::new("sides")
@@ -115,7 +132,6 @@ fn main() {
                 .short('k')
                 .long("keep")
                 .required(false)
-                .default_value("-1")
                 .help("how many dice to keep"),
         )
         .arg(
@@ -134,17 +150,13 @@ fn main() {
                 .default_value("1")
                 .help("how many times to roll"),
         )
-        .get_matches();
+        .get_matches()
+}
 
-    let mut times = handle_error(
-        match_result
-            .get_one::<String>("times")
-            .unwrap()
-            .parse::<usize>(),
-        "Times must be a positive integer",
-    );
+fn main() {
+    let match_result: ArgMatches = def_commands();
 
-    let roll = Roll::new(
+    let properties = Properties::new(
         handle_error(
             match_result
                 .get_one::<String>("sides")
@@ -167,22 +179,43 @@ fn main() {
                 .parse::<isize>(),
             "Modifier must be an integer",
         ),
-        handle_error(
-            match_result
-                .get_one::<String>("keep")
-                .unwrap()
-                .parse::<isize>(),
-            "Keep must be a positive intiger",
-        ),
+        match_result
+            .get_one::<String>("keep")
+            .map(|x| x.parse().ok())
+            .flatten(),
+    );
+
+    let mut times = handle_error(
+        match_result
+            .get_one::<String>("times")
+            .unwrap()
+            .parse::<usize>(),
+        "Times must be a positive integer",
     );
 
     while times > 0 {
-        let mut rolls: Vec<usize> = Vec::new();
-        roll.roll(&mut rolls);
-
-        roll.display(rolls, match_result.get_flag("verbose"));
-
         times -= 1;
+        let mut rolls: Vec<usize> = Vec::new();
+        properties.roll(&mut rolls);
+
+        if match_result.get_flag("verbose") {
+            println!(
+                "{:?}",
+                Roll {
+                    properties,
+                    values: rolls
+                }
+            );
+            continue;
+        }
+
+        println!(
+            "{}",
+            Roll {
+                properties,
+                values: rolls
+            }
+        );
     }
 }
 
