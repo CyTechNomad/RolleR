@@ -7,7 +7,7 @@ RolleR is a command-line dice rolling application written in Rust. It is designe
 - **Standard Dice Rolls**: Roll any number of dice with any number of sides.
 - **Advantage**: Simulate rolling with advantage.
 - **Modifiers**: Add or subtract modifiers to your rolls.
-- **Keep**: Roll multiple dice and keep only the highest or lowest results.
+- **Keep**: Roll multiple dice and keep only the highest results.
 - **Verbose**: Show all individual dice rolls.
 - **Multiple Rolls**: Repeat a roll multiple times.
 
